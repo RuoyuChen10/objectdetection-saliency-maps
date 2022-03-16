@@ -31,9 +31,8 @@ python gradcam-yolov3.py \
 
 Visualization:
 
-|     |   | |
-|  ----  | ----  | ----  |
 | ![](images/GradCAM/YOLOV3/0000008_02499_d_0000041-bbox-id-0.jpg)  | ![](images/GradCAM/YOLOV3/0000008_02499_d_0000041-bbox-id-1.jpg) | ![](images/GradCAM/YOLOV3/0000008_02499_d_0000041-bbox-id-2.jpg) |
+|  ----  | ----  | ----  |
 | ![](images/GradCAM/YOLOV3/9999962_00000_d_0000088-bbox-id-0.jpg) | ![](images/GradCAM/YOLOV3/9999962_00000_d_0000088-bbox-id-1.jpg) | ![](images/GradCAM/YOLOV3/9999962_00000_d_0000088-bbox-id-2.jpg) |
 
 
@@ -68,9 +67,8 @@ python drise-yolov3.py \
 
 Visualization:
 
-|     |   | |
-|  ----  | ----  | ----  |
 | ![](images/DRISE/YOLOV3/0000008_02499_d_0000041-bbox-id-0.jpg)  | ![](images/DRISE/YOLOV3/0000008_02499_d_0000041-bbox-id-1.jpg) | ![](images/DRISE/YOLOV3/0000008_02499_d_0000041-bbox-id-2.jpg) |
+|  ----  | ----  | ----  |
 | ![](images/DRISE/YOLOV3/9999962_00000_d_0000088-bbox-id-0.jpg) | ![](images/DRISE/YOLOV3/9999962_00000_d_0000088-bbox-id-1.jpg) | ![](images/DRISE/YOLOV3/9999962_00000_d_0000088-bbox-id-2.jpg) |
 
 
