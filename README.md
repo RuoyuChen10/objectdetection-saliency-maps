@@ -1,4 +1,4 @@
-# Objectdetection Saliency Maps
+# Object Detection Saliency Maps
 
 Based on [mmdetection](https://github.com/open-mmlab/mmdetection) framework. You need to install MMDetaction first, follow here: [get_started.md](https://github.com/open-mmlab/mmdetection/blob/master/docs/en/get_started.md)
 
