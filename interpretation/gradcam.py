@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import cv2
+import random
 
 class GradCAM_YOLOV3(object):
     """
@@ -17,7 +19,7 @@ class GradCAM_YOLOV3(object):
 
     def _get_features_hook(self, module, input, output):
         self.feature = output
-        print("feature shape:{}".format(output.size()))
+        # print("feature shape:{}".format(output.size()))
 
     def _get_grads_hook(self, module, input_grad, output_grad):
         """
@@ -48,8 +50,14 @@ class GradCAM_YOLOV3(object):
         self.net.zero_grad()
         # Important
         feat = self.net.extract_feat(data['img'][0].cuda())
+
+        if type(data['img_metas'][0]) == list:
+            img_metas = data['img_metas'][0]
+        else:
+            img_metas = data['img_metas'][0].data[0]
+
         res = self.net.bbox_head.simple_test(
-            feat, data['img_metas'][0], rescale=True)
+            feat, img_metas, rescale=True)
         
         score = res[0][0][index][4]
        
@@ -59,6 +67,8 @@ class GradCAM_YOLOV3(object):
         weight = torch.mean(gradient, axis=(1, 2))  # [C]
 
         feature = self.feature[0]  # [C,H,W]
+
+        # print(gradient.shape, weight.shape, feature.shape)
         
         cam = feature * weight[:, np.newaxis, np.newaxis]  # [C,H,W]
         cam = torch.sum(cam, axis=0)  # [H,W]
@@ -71,4 +81,51 @@ class GradCAM_YOLOV3(object):
         box = res[0][0][index][:-1].cpu().detach().numpy().astype(np.int32)
         
         class_id = res[0][1][index].cpu().detach().numpy()
-        return cam.cpu().detach().numpy(), box, class_id
+        return cam.cpu().detach().numpy(), box, class_id, score.cpu().detach().numpy()
+
+
+def norm_image(image):
+    """
+    :param image: [H,W,C]
+    :return:
+    """
+    image = image.copy()
+    image -= np.max(np.min(image), 0)
+    image /= np.max(image)
+    image *= 255.
+    return np.uint8(image)
+
+def gen_cam(image, mask):
+    """
+    生成CAM图
+    :param image: [H,W,C],原始图像
+    :param mask: [H,W],范围0~1
+    :return: tuple(cam,heatmap)
+    """
+    # mask to heatmap
+    heatmap = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
+    # heatmap = np.float32(heatmap) / 255
+    # heatmap = heatmap[..., ::-1]  # gbr to rgb
+
+    # merge heatmap to original image
+    cam = 0.5 * heatmap + 0.5 * image
+    return norm_image(cam), heatmap
+
+def draw_label_type(draw_img,bbox,label, line = 5,label_color=None):
+    if label_color == None:
+        label_color = [random.randint(0,255),random.randint(0,255),random.randint(0,255)]
+
+    # label = str(bbox[-1])
+    labelSize = cv2.getTextSize(label + '0', cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+    if bbox[1] - labelSize[1] - 3 < 0:
+        cv2.rectangle(draw_img,
+                      bbox[:2],
+                      bbox[2:],
+                      color=label_color,
+                      thickness=line)
+    else:
+        cv2.rectangle(draw_img,
+                      bbox[:2],
+                      bbox[2:],
+                      color=label_color,
+                      thickness=line)
