@@ -57,7 +57,7 @@ cd ..
 visualization based on proposal:
 
 ```shell
-python gradcam-frcn-c4-global.py \
+python gradcam-frcn-c4-proposal.py \
         --config <Configs Path> \
         --checkpoint <Checkpoint Path> \
         --image-path <Your Image Path> \
@@ -71,7 +71,7 @@ python gradcam-frcn-c4-global.py \
 
 visualization based on global:
 ```
-python gradcam-frcn-c4-proposal.py \
+python gradcam-frcn-c4-global.py \
         --config <Configs Path> \
         --checkpoint <Checkpoint Path> \
         --image-path <Your Image Path> \
