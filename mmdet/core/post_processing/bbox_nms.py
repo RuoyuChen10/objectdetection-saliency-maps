@@ -20,7 +20,7 @@ def multiclass_nms(multi_bboxes,
             contains scores of the background class, but this will be ignored.
         score_thr (float): bbox threshold, bboxes with scores lower than it
             will not be considered.
-        nms_thr (float): NMS IoU threshold
+        nms_cfg (dict): a dict that contains the arguments of nms operations
         max_num (int, optional): if there are more than max_num bboxes after
             NMS, only top max_num will be kept. Default to -1.
         score_factors (Tensor, optional): The factors multiplied to scores
@@ -48,7 +48,6 @@ def multiclass_nms(multi_bboxes,
     bboxes = bboxes.reshape(-1, 4)
     scores = scores.reshape(-1)
     labels = labels.reshape(-1)
-
     if not torch.onnx.is_in_onnx_export():
         # NonZero not supported  in TensorRT
         # remove low scoring boxes
@@ -72,7 +71,7 @@ def multiclass_nms(multi_bboxes,
         bboxes = torch.cat([bboxes, bboxes.new_zeros(1, 4)], dim=0)
         scores = torch.cat([scores, scores.new_zeros(1)], dim=0)
         labels = torch.cat([labels, labels.new_zeros(1)], dim=0)
-
+    
     if bboxes.numel() == 0:
         if torch.onnx.is_in_onnx_export():
             raise RuntimeError('[ONNX Error] Can not record NMS '
@@ -88,7 +87,6 @@ def multiclass_nms(multi_bboxes,
     if max_num > 0:
         dets = dets[:max_num]
         keep = keep[:max_num]
-
     if return_inds:
         return dets, labels[keep], inds[keep]
     else:

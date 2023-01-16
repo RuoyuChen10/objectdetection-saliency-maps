@@ -72,9 +72,8 @@ class BBoxTestMixin:
                 in the second list is the labels with shape (num_boxes, ).
                 The length of both lists should be equal to batch_size.
         """
-
         rois = bbox2roi(proposals)
-
+        # print("rois: {}".format(rois.shape))
         if rois.shape[0] == 0:
             batch_size = len(proposals)
             det_bbox = rois.new_zeros(0, 5)

@@ -345,7 +345,7 @@ class BBoxHead(BaseModule):
                 dimension 5 represent (tl_x, tl_y, br_x, br_y, score).
                 Second tensor is the labels with shape (num_boxes, ).
         """
-
+        
         # some loss (Seesaw loss..) may have custom activation
         if self.custom_cls_channels:
             scores = self.loss_cls.get_activation(cls_score)
@@ -367,14 +367,12 @@ class BBoxHead(BaseModule):
             scale_factor = bboxes.new_tensor(scale_factor)
             bboxes = (bboxes.view(bboxes.size(0), -1, 4) / scale_factor).view(
                 bboxes.size()[0], -1)
-
         if cfg is None:
             return bboxes, scores
         else:
             det_bboxes, det_labels = multiclass_nms(bboxes, scores,
                                                     cfg.score_thr, cfg.nms,
                                                     cfg.max_per_img)
-
             return det_bboxes, det_labels
 
     @force_fp32(apply_to=('bbox_preds', ))

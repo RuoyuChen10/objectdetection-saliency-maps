@@ -3,6 +3,7 @@
 
 import warnings
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -235,7 +236,8 @@ class YOLOV3Head(BaseDenseHead, BBoxTestMixin):
         """
         assert len(pred_maps) == self.num_levels
         cfg = self.test_cfg if cfg is None else cfg
-        scale_factors = [img_meta['scale_factor'] for img_meta in img_metas]
+        scale_factors = np.array(
+            [img_meta['scale_factor'] for img_meta in img_metas])
 
         num_imgs = len(img_metas)
         featmap_sizes = [pred_map.shape[-2:] for pred_map in pred_maps]
@@ -561,7 +563,7 @@ class YOLOV3Head(BaseDenseHead, BBoxTestMixin):
             if nms_pre > 0:
                 _, topk_inds = conf_pred.topk(nms_pre)
                 batch_inds = torch.arange(batch_size).view(
-                    -1, 1).expand_as(topk_inds).long().to(device)
+                    -1, 1).expand_as(topk_inds).long()
                 # Avoid onnx2tensorrt issue in https://github.com/NVIDIA/TensorRT/issues/1134 # noqa: E501
                 transformed_inds = (
                     bbox_pred.shape[1] * batch_inds + topk_inds)

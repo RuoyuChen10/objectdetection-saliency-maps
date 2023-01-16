@@ -2,6 +2,8 @@
 
 Based on [mmdetection](https://github.com/open-mmlab/mmdetection) framework. You need to install MMDetaction first, follow here: [get_started.md](https://github.com/open-mmlab/mmdetection/blob/master/docs/en/get_started.md)
 
+[2023.01.16] I released the Grad-CAM visualization results based on the two-stage object detection method, [Faster R-CNN](./gradcam-frcn-c4.py).
+
 ## 1. Grad-CAM
 
 > Selvaraju, Ramprasaath R., et al. "Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization." International Journal of Computer Vision 128.2 (2020): 336-359.
@@ -35,6 +37,35 @@ Visualization:
 |  ----  | ----  | ----  |
 | ![](images/GradCAM/YOLOV3/9999962_00000_d_0000088-bbox-id-0.jpg) | ![](images/GradCAM/YOLOV3/9999962_00000_d_0000088-bbox-id-1.jpg) | ![](images/GradCAM/YOLOV3/9999962_00000_d_0000088-bbox-id-2.jpg) |
 
+
+</details>
+
+<details>
+<summary>Faster R-CNN (C4)</summary>
+
+Paper: [https://arxiv.org/abs/1506.01497](https://arxiv.org/abs/1506.01497)
+
+Step by step see: [gradcam-faster-rcnn-C4.ipynb](tutorial/gradcam-faster-rcnn-C4.ipynb)
+
+```angular2html
+mkdir checkpoints
+cd checkpoints
+wget https://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_caffe_c4_1x_coco/faster_rcnn_r50_caffe_c4_1x_coco_20220316_150152-3f885b85.pth
+cd ..
+
+python gradcam-frcn-c4.py \
+        --config <Configs Path> \
+        --checkpoint <Checkpoint Path> \
+        --image-path <Your Image Path> \
+        --bbox-index 0 \
+        --save-dir images/GradCAM/FRCN-C4
+```
+
+Visualization:
+
+| | | |
+|-|-|-|
+|![](./images/GradCAM/FRCN-C4/0-19-0.9997443556785583.jpg)|![](./images/GradCAM/FRCN-C4/1-19-0.9754877090454102.jpg)|![](./images/GradCAM/FRCN-C4/2-19-0.7261363863945007.jpg)|
 
 </details>
 

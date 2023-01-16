@@ -26,6 +26,80 @@ label_names = [
     'bird', 'camouflage man'
 ]
 
+# class GradCAM_YOLOV3(object):
+#     """
+#     Grad CAM for Yolo V3 in mmdetection framework
+#     """
+
+#     def __init__(self, net, layer_name):
+#         self.net = net
+#         self.layer_name = layer_name
+#         self.feature = None
+#         self.gradient = None
+#         self.net.eval()
+#         self.handlers = []
+#         self._register_hook()
+
+#     def _get_features_hook(self, module, input, output):
+#         self.feature = output
+#         print("feature shape:{}".format(output.size()))
+
+#     def _get_grads_hook(self, module, input_grad, output_grad):
+#         """
+#         :param input_grad: tuple, input_grad[0]: None
+#                                    input_grad[1]: weight
+#                                    input_grad[2]: bias
+#         :param output_grad:tuple
+#         :return:
+#         """
+#         self.gradient = output_grad[0]
+
+#     def _register_hook(self):
+#         for (name, module) in self.net.named_modules():
+#             if name == self.layer_name:
+#                 self.handlers.append(module.register_forward_hook(self._get_features_hook))
+#                 self.handlers.append(module.register_backward_hook(self._get_grads_hook))
+
+#     def remove_handlers(self):
+#         for handle in self.handlers:
+#             handle.remove()
+
+#     def __call__(self, data, index=0):
+#         """
+#         :param image: cv2 format, single image
+#         :param index: Which bounding box
+#         :return:
+#         """
+#         self.net.zero_grad()
+#         # Important
+#         feat = self.net.extract_feat(data['img'][0].cuda())
+#         res = self.net.bbox_head.simple_test(
+#             feat, data['img_metas'][0], rescale=True)
+        
+#         score = res[0][0][index][4]
+       
+#         score.backward()
+
+#         gradient = self.gradient.cpu().data.numpy()[0]  # [1,C,H,W]
+#         weight = np.mean(gradient, axis=(1, 2))  # [C]
+
+#         feature = self.feature.cpu().data.numpy().squeeze()[0]  # [C,H,W]
+
+#         print(gradient.shape, weight.shape, feature.shape)
+
+#         cam = feature * weight[:, np.newaxis, np.newaxis]  # [C,H,W]
+#         cam = np.sum(cam, axis=0)  # [H,W]
+#         cam = np.maximum(cam, 0)  # ReLU
+
+#         # Normalization
+#         cam -= np.min(cam)
+#         cam /= np.max(cam)
+#         # resize to 224*224
+#         box = res[0][0][index][:-1].cpu().detach().numpy().astype(np.int32)
+        
+#         class_id = res[0][1][index].cpu().detach().numpy()
+#         return cam, box, class_id
+
 def prepare_img(imgs, model):
     """
     prepare function
@@ -145,7 +219,7 @@ def main(args):
     data = prepare_img(image, model)
 
     ## First is the data, second is the index of the predicted bbox
-    mask, box, class_id = grad_cam(data, args.bbox_index)
+    mask, box, class_id, score = grad_cam(data, args.bbox_index)
 
     # rendering
     mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
@@ -176,8 +250,8 @@ def parse_args():
                         help='device.')
     parser.add_argument('--image-path',
                         type=str,
-                        # default = '/home/cry/data4/Datasets/js-dataset/images/0000008_02499_d_0000041.jpg',
-                        default = "/home/cry/data4/Datasets/js-dataset/images/9999962_00000_d_0000088.jpg",
+                        default = '/home/cry/data4/Datasets/js-dataset/images/0000008_02499_d_0000041.jpg',
+                        # default = "/home/cry/data4/Datasets/js-dataset/images/9999962_00000_d_0000088.jpg",
                         help='image path.')
     parser.add_argument('--bbox-index',
                         type=int,
