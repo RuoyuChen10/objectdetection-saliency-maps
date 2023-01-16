@@ -71,7 +71,6 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
                 the corresponding box.
         """
         assert len(cls_scores) == len(bbox_preds)
-
         if score_factors is None:
             # e.g. Retina, FreeAnchor, Foveabox, etc.
             with_score_factors = False
