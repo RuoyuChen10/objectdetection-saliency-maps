@@ -2,7 +2,7 @@
 
 Based on [mmdetection](https://github.com/open-mmlab/mmdetection) framework. You need to install MMDetaction first, follow here: [get_started.md](https://github.com/open-mmlab/mmdetection/blob/master/docs/en/get_started.md)
 
-[2023.01.16] I released the Grad-CAM visualization results based on the two-stage object detection method, [Faster R-CNN](./gradcam-frcn-c4.py).
+[2023.01.16] I released the Grad-CAM visualization results based on the two-stage object detection method, [Faster R-CNN](./gradcam-frcn-c4-proposal.py).
 
 ## 1. Grad-CAM
 
@@ -45,15 +45,19 @@ Visualization:
 
 Paper: [https://arxiv.org/abs/1506.01497](https://arxiv.org/abs/1506.01497)
 
-Step by step see: [gradcam-faster-rcnn-C4.ipynb](tutorial/gradcam-faster-rcnn-C4.ipynb)
+Step by step see: [gradcam-faster-rcnn-C4-proposal.ipynb](tutorial/gradcam-faster-rcnn-C4-proposal.ipynb) and [gradcam-faster-rcnn-C4-global.ipynb](tutorial/gradcam-faster-rcnn-C4-global.ipynb)
 
 ```angular2html
 mkdir checkpoints
 cd checkpoints
 wget https://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_caffe_c4_1x_coco/faster_rcnn_r50_caffe_c4_1x_coco_20220316_150152-3f885b85.pth
 cd ..
+```
 
-python gradcam-frcn-c4.py \
+visualization based on proposal:
+
+```shell
+python gradcam-frcn-c4-global.py \
         --config <Configs Path> \
         --checkpoint <Checkpoint Path> \
         --image-path <Your Image Path> \
@@ -61,11 +65,25 @@ python gradcam-frcn-c4.py \
         --save-dir images/GradCAM/FRCN-C4
 ```
 
-Visualization:
+| | | |
+|-|-|-|
+|![](./images/GradCAM/FRCN-C4/proposal/0-19-0.9997443556785583.jpg)|![](./images/GradCAM/FRCN-C4/proposal/1-19-0.9754877090454102.jpg)|![](./images/GradCAM/FRCN-C4/proposal/2-19-0.7261363863945007.jpg)|
+
+visualization based on global:
+```
+python gradcam-frcn-c4-proposal.py \
+        --config <Configs Path> \
+        --checkpoint <Checkpoint Path> \
+        --image-path <Your Image Path> \
+        --bbox-index 0 \
+        --save-dir images/GradCAM/FRCN-C4
+```
 
 | | | |
 |-|-|-|
-|![](./images/GradCAM/FRCN-C4/0-19-0.9997443556785583.jpg)|![](./images/GradCAM/FRCN-C4/1-19-0.9754877090454102.jpg)|![](./images/GradCAM/FRCN-C4/2-19-0.7261363863945007.jpg)|
+|![](./images/GradCAM/FRCN-C4/global/0-19-0.9997443556785583.jpg)|![](./images/GradCAM/FRCN-C4/global/1-19-0.9754877090454102.jpg)|![](./images/GradCAM/FRCN-C4/global/2-19-0.7261363863945007.jpg)|
+
+
 
 </details>
 

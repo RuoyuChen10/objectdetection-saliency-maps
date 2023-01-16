@@ -114,10 +114,10 @@ def plot_cam_image(img, mask, box, class_id, score, bbox_index, COLORS, label_na
     image_tmp = img.copy()
     x1, y1, x2, y2 = box
     # predict_box = img[y1:y2, x1:x2]
-    image_heatmap = gen_cam(img[y1:y2, x1:x2], mask)
-    image_cam = img[y1:y2, x1:x2]*0.4+image_heatmap*0.6
+    image_heatmap = gen_cam(img, mask)
+    image_cam = img*0.4+image_heatmap*0.6
     
-    image_tmp[y1:y2, x1:x2] = image_cam
+    image_tmp = image_cam
     image_tmp = cv2.rectangle(image_tmp, (x1,y1), (x2,y2), COLORS[class_id], int(width/112))
 
     label = label_names[class_id]
@@ -140,13 +140,13 @@ def main(args):
     model.CLASSES = checkpoint['meta']['CLASSES']
     COLORS = np.random.uniform(0, 255, size=(len(label_names), 3))
 
-    grad_cam = GradCAM_FRCN(model, 'roi_head.shared_head.layer4.2')
+    grad_cam = GradCAM_FRCN(model, 'backbone.layer3.5')
 
     image = cv2.imread(args.image_path)
     data = prepare_img(image, model)
 
     ## First is the data, second is the index of the predicted bbox
-    mask, box, class_id, score = grad_cam(data, args.bbox_index)
+    mask, box, class_id, score = grad_cam(data, args.bbox_index, "global")
     
     org_img = cv2.imread(args.image_path)
 
@@ -154,7 +154,7 @@ def main(args):
     plot_cam_image(org_img[..., ::-1], mask, box, class_id, score, args.bbox_index, COLORS, label_names, args.save_dir)
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='YoloV3 Grad-CAM')
+    parser = argparse.ArgumentParser(description='Faster R-CNN Grad-CAM')
     # general
     parser.add_argument('--config',
                         type=str,
@@ -175,11 +175,11 @@ def parse_args():
                         help='image path.')
     parser.add_argument('--bbox-index',
                         type=int,
-                        default = 1,
+                        default = 0,
                         help='index.')
     parser.add_argument('--save-dir',
                         type=str,
-                        default = 'images/GradCAM/FRCN-C4',
+                        default = 'images/GradCAM/FRCN-C4/global',
                         help='save dir.')
 
     args = parser.parse_args()

@@ -158,10 +158,9 @@ class GradCAM_FRCN(object):
             cls_score_list = select_single_mlvl(cls_scores, img_id, detach=False)
             bbox_pred_list = select_single_mlvl(bbox_preds, img_id, detach=False)
             if with_score_factors:
-                score_factor_list = select_single_mlvl(score_factors, img_id)
+                score_factor_list = select_single_mlvl(score_factors, img_id, detach=False)
             else:
                 score_factor_list = [None for _ in range(num_levels)]
-
             results = self.net.rpn_head._get_bboxes_single(cls_score_list, bbox_pred_list,
                                               score_factor_list, mlvl_priors,
                                               img_meta, cfg, rescale, with_nms,
@@ -275,10 +274,11 @@ class GradCAM_FRCN(object):
                                                     cfg.max_per_img, return_inds=True)
             return det_bboxes, det_labels, inds
 
-    def __call__(self, data, index=0):
+    def __call__(self, data, index=0, mode = "proposal"):
         """
         :param image: cv2 format, single image
         :param index: Which bounding box
+        "param mode: [proposal, global]
         :return:
         """
         self.net.zero_grad()
@@ -290,25 +290,33 @@ class GradCAM_FRCN(object):
         else:
             img_metas = data['img_metas'][0].data[0]
         
-        rpn_outs = self.net.rpn_head(feat)
-        proposal_list = self.rpn_get_bboxes(*rpn_outs, img_metas=img_metas)
+        if mode is "proposal":
+            rpn_outs = self.net.rpn_head(feat)
+            proposal_list = self.rpn_get_bboxes(*rpn_outs, img_metas=img_metas)
         # print(proposal_list[0].shape)
         # proposal_list = model.rpn_head.simple_test_rpn(feat, img_metas)
         # res = model.roi_head.simple_test(feat, proposal_list, img_metas, rescale=True)
-        res = self.simple_test_bboxes(feat, img_metas, proposal_list, self.net.roi_head.test_cfg, rescale=True)
+            res = self.simple_test_bboxes(feat, img_metas, proposal_list, self.net.roi_head.test_cfg, rescale=True)
         
-        ind = int(res[2][index]/len(self.net.CLASSES))
+            ind = int(res[2][index]/len(self.net.CLASSES))
+        elif mode is "global":
+            rpn_outs = self.net.rpn_head(feat)
+            proposal_list = self.rpn_get_bboxes(*rpn_outs, img_metas=img_metas)
+            res= self.net.roi_head.simple_test_bboxes(
+            feat, img_metas, proposal_list, self.net.roi_head.test_cfg, rescale=True)
+        
         score = res[0][0][index][4]
-       
         score.backward()
-        # print(res[0][0].shape)
-        # # print(self.gradient)
-        # print(self.feature.shape)
         
-        gradient = self.gradient[ind]  # [C,H,W]
-        weight = torch.mean(gradient, axis=(1, 2))  # [C]
+        if mode is "proposal":
+            gradient = self.gradient[ind]  # [C,H,W]
+            weight = torch.mean(gradient, axis=(1, 2))  # [C]
+            feature = self.feature[ind]  # [C,H,W]
 
-        feature = self.feature[ind]  # [C,H,W]
+        elif mode is "global":
+            gradient = self.gradient[0]    # [C,H,W]
+            weight = torch.mean(gradient, axis=(1, 2))  # [C]
+            feature = self.feature[0]      # [C,H,W]
 
         cam = feature * weight[:, np.newaxis, np.newaxis]  # [C,H,W]
         cam = torch.sum(cam, axis=0)  # [H,W]
@@ -317,6 +325,7 @@ class GradCAM_FRCN(object):
         # Normalization
         cam -= torch.min(cam)
         cam /= torch.max(cam)
+
         # resize to 224*224
         box = res[0][0][index][:-1].cpu().detach().numpy().astype(np.int32)
         
