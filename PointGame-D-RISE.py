@@ -2,7 +2,7 @@ import math
 import torch
 import argparse
 import random
-import os
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +18,6 @@ from mmcv.ops import RoIPool
 from mmcv import Config
 
 from interpretation.gradcam import GradCAM_YOLOV3, gen_cam, GradCAM_RetinaNet
-from utils import mkdir
 
 from tqdm import tqdm
 
@@ -51,7 +50,7 @@ def correspond_box(predictbox, groundtruthboxes):
         return groundtruthboxes[index]
     else:
         return False
-
+    
 def maximum_point(mask):
     indexes = np.where(mask==np.max(mask))
     if len(indexes[1]) and len(indexes[0]):
@@ -59,13 +58,55 @@ def maximum_point(mask):
         return point
     else:
         return False
-
+    
 def point_game(point, gtbox):
     if (point > gtbox[:2]).sum() == 2 and (point < gtbox[2:]).sum() == 2:
         return 1
     else:
         return 0
+    
+def generate_mask(image_size, grid_size, prob_thresh):
+    image_w, image_h = image_size
+    grid_w, grid_h = grid_size
+    cell_w, cell_h = math.ceil(image_w / grid_w), math.ceil(image_h / grid_h)
+    up_w, up_h = (grid_w + 1) * cell_w, (grid_h + 1) * cell_h
 
+    mask = (np.random.uniform(0, 1, size=(grid_h, grid_w)) <
+            prob_thresh).astype(np.float32)
+    mask = cv2.resize(mask, (up_w, up_h), interpolation=cv2.INTER_LINEAR)
+    offset_w = np.random.randint(0, cell_w)
+    offset_h = np.random.randint(0, cell_h)
+    mask = mask[offset_h:offset_h + image_h, offset_w:offset_w + image_w]
+    return mask
+    
+def mask_image(image, mask):
+    masked = ((image.astype(np.float32) / 255 * np.dstack([mask] * 3)) *
+              255).astype(np.uint8)
+    return masked
+    
+def generate_saliency_map(model,
+                          image,
+                          target_class_index,
+                          target_box,
+                          prob_thresh=0.5,
+                          grid_size=(16, 16),
+                          n_masks=5000,
+                          seed=0):
+    np.random.seed(seed)
+    image_h, image_w = image.shape[:2]
+    res = np.zeros((image_h, image_w), dtype=np.float32)
+    for _ in range(n_masks):
+        mask = generate_mask(image_size=(image_w, image_h),
+                             grid_size=grid_size,
+                             prob_thresh=prob_thresh)
+        masked = mask_image(image, mask)
+        out = inference_detector(model, masked)
+        pred = out[target_class_index]
+        score = max([iou(target_box, box) * score for *box, score in pred],
+                    default=0)
+        res += mask * score
+    return res
+    
 def parse_args():
     parser = argparse.ArgumentParser(description='YoloV3 Grad-CAM')
     # general
@@ -73,13 +114,9 @@ def parse_args():
                         type=str,
                         default = './work_dirs/yolo_v3/yolo_v3.py',
                         help='Yolo V3 configuration.')
-    parser.add_argument('--model',
-                        type=str,
-                        default = 'yolov3',
-                        help='model.')
     parser.add_argument('--thresh',
                         type=float,
-                        default = 0.3,
+                        default = 0.5,
                         help='Score threshold.')
     parser.add_argument('--checkpoint',
                         type=str,
@@ -104,15 +141,7 @@ def main(args):
     checkpoint = args.checkpoint
     device = args.device
     model = init_detector(config, checkpoint, device)
-
-    mkdir(args.save_dir)
-    mkdir(os.path.join(args.save_dir, "Grad-CAM"))
-
-    if args.model == "yolov3":
-        grad_cam = GradCAM_YOLOV3(model, 'backbone.conv_res_block4.conv.conv')
-    elif args.model == "retinanet":
-        grad_cam = GradCAM_RetinaNet(model, 'backbone.layer4.2')
-
+    
     # dataset
     dataset = build_dataset(cfg.data.test_PG)
     data_loader = build_dataloader(
@@ -124,7 +153,7 @@ def main(args):
 
     points_num = 0
     count_num = 0
-
+    
     # Read the imageset
     for data in tqdm(data_loader):
         image_path = data["img_metas"][0].data[0][0]["filename"]
@@ -134,38 +163,57 @@ def main(args):
         gt_bboxes = data['gt_bboxes'][0][0]
         gt_bboxes = (gt_bboxes / scale_factor).int()
         
-        ## gradcam
-        # for index in range(len(gt_bboxes)):
+        feat = model.extract_feat(data['img'][0].cuda())
+        
+        if type(data['img_metas'][0]) == list:
+            img_metas = data['img_metas'][0]
+        else:
+            img_metas = data['img_metas'][0].data[0]
+            
+        res = model.bbox_head.simple_test(
+            feat, img_metas, rescale=True)
+        
         # Top 1
         for index in [0]:
-            mask, box, class_id, score = grad_cam(data, index)
-            if score == None or score < args.thresh:
+            target_box = res[0][0][index][:-1].cpu().detach().numpy().astype(np.int32)
+            
+            target_class = res[0][1][index].cpu().detach().numpy()
+            score = res[0][0][index][-1].cpu().detach().numpy()
+            if score < args.thresh:
                 break
+            
+            mask = generate_saliency_map(model,
+                                        image,
+                                        target_class_index=target_class,
+                                        target_box=target_box,
+                                        prob_thresh=0.5,
+                                        grid_size=(16, 16),
+                                        n_masks=500)
+            mask -= mask.min()
+            mask /= mask.max()
             mask = cv2.resize(mask, (image_shape[1], image_shape[0]))
-
-            gt_box = correspond_box(box, gt_bboxes)
-            # exist
+            
+            gt_box = correspond_box(target_box, gt_bboxes)
+            
             if gt_box is not False:
                 count_num += 1
 
                 points = maximum_point(mask)
                 if points is False:
                     continue
-
+                
                 point_game_result = point_game(points, gt_box.cpu().numpy())
                 points_num += point_game_result
-                
+            
                 image_cam, heatmap = gen_cam(image, mask)
                 draw_image = image_cam.copy()
-                draw_label_type(draw_image, box, gt_box.cpu().numpy(), points, label_names[int(class_id)],line = 5,label_color=(0,255,255))
-                # cv2.imwrite("results/result-"+str(index)+".jpg", draw_image)
-                print(111)
-            
-                cv2.imwrite("{}/{}-{}-{}-{}.jpg".format(os.path.join(args.save_dir, "Grad-CAM"), image_path.split("/")[-1].replace(".jpg", ""), gt_box, points, point_game_result), draw_image)
-
-    print(points_num, count_num, points_num/count_num)
-        
-    return
+                draw_label_type(draw_image, target_box, gt_box.cpu().numpy(), points, label_names[int(target_class)],line = 5,label_color=(0,255,255))
+                
+                cv2.imwrite("results/YOLO_v3/D-RISE/{}-{}-{}-{}.jpg".format(image_path.split("/")[-1].replace(".jpg", ""), gt_box, points, point_game_result), draw_image)
+            else:
+                print(False)
+        # break
+    # print(points_num, count_num, points_num/count_num)
 
 def draw_label_type(draw_img, bbox, gtbox, points, label, line = 5,label_color=None):
     if label_color == None:

@@ -119,6 +119,9 @@ class GradCAM_RetinaNet(object):
         res = self.get_bboxes(
             *outs, img_metas=img_metas, rescale=True)
         
+        if res[0][0].shape[0] == 0:
+            return None, None, None, None
+        
         score = res[0][0][index][4]
         score.backward()
 

@@ -2,6 +2,15 @@
 
 Based on [mmdetection](https://github.com/open-mmlab/mmdetection) framework. You need to install MMDetaction first, follow here: [get_started.md](https://github.com/open-mmlab/mmdetection/blob/master/docs/en/get_started.md)
 
+An installation example (cuda 11.6):
+```
+conda create -n detX python=3.9
+conda activate detX
+pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116
+pip install -v -e .
+pip install mmcv-full==1.7.0 -f https://download.openmmlab.com/mmcv/dist/cu116/torch1.12/index.html
+```
+
 ## Update
 
 - [2023.01.17] I released the Grad-CAM visualization results based on the single-stage object detection method, [RetinaNet](./gradcam-retinanet.py).
