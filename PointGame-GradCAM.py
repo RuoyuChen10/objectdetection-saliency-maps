@@ -17,7 +17,7 @@ from mmdet.models import build_detector
 from mmcv.ops import RoIPool
 from mmcv import Config
 
-from interpretation.gradcam import GradCAM_YOLOV3, gen_cam, GradCAM_RetinaNet
+from interpretation.gradcam import GradCAM_YOLOV3, gen_cam, GradCAM_RetinaNet, GradCAM_FRCN
 from utils import mkdir
 
 from tqdm import tqdm
@@ -97,6 +97,55 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+from mmcv.parallel import collate, scatter
+
+def prepare_img(imgs, model):
+    if isinstance(imgs, (list, tuple)):
+        is_batch = True
+    else:
+        imgs = [imgs]
+        is_batch = False
+
+    cfg = model.cfg
+    device = next(model.parameters()).device  # model device
+
+    if isinstance(imgs[0], np.ndarray):
+        cfg = cfg.copy()
+        # set loading pipeline type
+        cfg.data.test.pipeline[0].type = 'LoadImageFromWebcam'
+
+    cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
+    test_pipeline = Compose(cfg.data.test.pipeline)
+
+    datas = []
+    for img in imgs:
+        # prepare data
+        if isinstance(img, np.ndarray):
+            # directly add img
+            data = dict(img=img)
+        else:
+            # add information into dict
+            data = dict(img_info=dict(filename=img), img_prefix=None)
+        # build the data pipeline
+        data = test_pipeline(data)
+        datas.append(data)
+    # print(datas)
+
+    data = collate(datas, samples_per_gpu=len(imgs))
+    # just get the actual data from DataContainer
+    data['img_metas'] = [img_metas.data[0] for img_metas in data['img_metas']]
+    data['img'] = [img.data[0] for img in data['img']]
+    if next(model.parameters()).is_cuda:
+        # scatter to specified GPU
+        data = scatter(data, [device])[0]
+    else:
+        for m in model.modules():
+            assert not isinstance(
+                m, RoIPool
+            ), 'CPU inference with RoIPool is not supported currently.'
+
+    return data
+
 def main(args):
     # init
     config = args.config
@@ -112,6 +161,8 @@ def main(args):
         grad_cam = GradCAM_YOLOV3(model, 'backbone.conv_res_block4.conv.conv')
     elif args.model == "retinanet":
         grad_cam = GradCAM_RetinaNet(model, 'backbone.layer4.2')
+    elif args.model == "frcn":
+        grad_cam = GradCAM_FRCN(model, 'backbone.layer3.5')
 
     # dataset
     dataset = build_dataset(cfg.data.test_PG)
@@ -134,6 +185,8 @@ def main(args):
         gt_bboxes = data['gt_bboxes'][0][0]
         gt_bboxes = (gt_bboxes / scale_factor).int()
         
+        if args.model == "frcn":
+            data = prepare_img(image, model)
         ## gradcam
         # for index in range(len(gt_bboxes)):
         # Top 1
@@ -142,7 +195,7 @@ def main(args):
             if score == None or score < args.thresh:
                 break
             mask = cv2.resize(mask, (image_shape[1], image_shape[0]))
-
+           
             gt_box = correspond_box(box, gt_bboxes)
             # exist
             if gt_box is not False:
@@ -159,7 +212,6 @@ def main(args):
                 draw_image = image_cam.copy()
                 draw_label_type(draw_image, box, gt_box.cpu().numpy(), points, label_names[int(class_id)],line = 5,label_color=(0,255,255))
                 # cv2.imwrite("results/result-"+str(index)+".jpg", draw_image)
-                print(111)
             
                 cv2.imwrite("{}/{}-{}-{}-{}.jpg".format(os.path.join(args.save_dir, "Grad-CAM"), image_path.split("/")[-1].replace(".jpg", ""), gt_box, points, point_game_result), draw_image)
 

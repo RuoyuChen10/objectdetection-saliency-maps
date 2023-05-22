@@ -410,7 +410,7 @@ class GradCAM_FRCN(object):
                                                     cfg.max_per_img, return_inds=True)
             return det_bboxes, det_labels, inds
 
-    def __call__(self, data, index=0, mode = "proposal"):
+    def __call__(self, data, index=0, mode = "global"):
         """
         :param image: cv2 format, single image
         :param index: Which bounding box
@@ -438,8 +438,11 @@ class GradCAM_FRCN(object):
         elif mode is "global":
             rpn_outs = self.net.rpn_head(feat)
             proposal_list = self.rpn_get_bboxes(*rpn_outs, img_metas=img_metas)
-            res= self.net.roi_head.simple_test_bboxes(
+            res = self.net.roi_head.simple_test_bboxes(
             feat, img_metas, proposal_list, self.net.roi_head.test_cfg, rescale=True)
+
+        if res[0][0].shape[0] == 0:
+            return None, None, None, None
         
         score = res[0][0][index][4]
         score.backward()

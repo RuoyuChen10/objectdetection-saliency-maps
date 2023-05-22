@@ -2,7 +2,7 @@ import math
 import torch
 import argparse
 import random
-
+import os
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,11 +18,15 @@ from mmcv.ops import RoIPool
 from mmcv import Config
 
 from interpretation.gradcam import GradCAM_YOLOV3, gen_cam, GradCAM_RetinaNet
+from utils import mkdir
 
 from tqdm import tqdm
 
 # Modefy the label names
 label_names = [
+    'person bev', 'car bev', 'van bev', 'truck bev', 'bus bev',
+    'person', 'car', 'aeroplane', 'bus', 'train', 'truck', 'boat',
+    'bird', 'camouflage man', 
     'person bev', 'car bev', 'van bev', 'truck bev', 'bus bev',
     'person', 'car', 'aeroplane', 'bus', 'train', 'truck', 'boat',
     'bird', 'camouflage man'
@@ -106,7 +110,56 @@ def generate_saliency_map(model,
                     default=0)
         res += mask * score
     return res
-    
+
+from mmcv.parallel import collate, scatter
+
+def prepare_img(imgs, model):
+    if isinstance(imgs, (list, tuple)):
+        is_batch = True
+    else:
+        imgs = [imgs]
+        is_batch = False
+
+    cfg = model.cfg
+    device = next(model.parameters()).device  # model device
+
+    if isinstance(imgs[0], np.ndarray):
+        cfg = cfg.copy()
+        # set loading pipeline type
+        cfg.data.test.pipeline[0].type = 'LoadImageFromWebcam'
+
+    cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
+    test_pipeline = Compose(cfg.data.test.pipeline)
+
+    datas = []
+    for img in imgs:
+        # prepare data
+        if isinstance(img, np.ndarray):
+            # directly add img
+            data = dict(img=img)
+        else:
+            # add information into dict
+            data = dict(img_info=dict(filename=img), img_prefix=None)
+        # build the data pipeline
+        data = test_pipeline(data)
+        datas.append(data)
+    # print(datas)
+
+    data = collate(datas, samples_per_gpu=len(imgs))
+    # just get the actual data from DataContainer
+    data['img_metas'] = [img_metas.data[0] for img_metas in data['img_metas']]
+    data['img'] = [img.data[0] for img in data['img']]
+    if next(model.parameters()).is_cuda:
+        # scatter to specified GPU
+        data = scatter(data, [device])[0]
+    else:
+        for m in model.modules():
+            assert not isinstance(
+                m, RoIPool
+            ), 'CPU inference with RoIPool is not supported currently.'
+
+    return data
+
 def parse_args():
     parser = argparse.ArgumentParser(description='YoloV3 Grad-CAM')
     # general
@@ -114,6 +167,10 @@ def parse_args():
                         type=str,
                         default = './work_dirs/yolo_v3/yolo_v3.py',
                         help='Yolo V3 configuration.')
+    parser.add_argument('--model',
+                        type=str,
+                        default = 'yolov3',
+                        help='model.')
     parser.add_argument('--thresh',
                         type=float,
                         default = 0.5,
@@ -142,6 +199,9 @@ def main(args):
     device = args.device
     model = init_detector(config, checkpoint, device)
     
+    mkdir(args.save_dir)
+    mkdir(os.path.join(args.save_dir, "D-RISE"))
+    
     # dataset
     dataset = build_dataset(cfg.data.test_PG)
     data_loader = build_dataloader(
@@ -163,21 +223,31 @@ def main(args):
         gt_bboxes = data['gt_bboxes'][0][0]
         gt_bboxes = (gt_bboxes / scale_factor).int()
         
+        if args.model == "frcn":
+            data = prepare_img(image, model)
+        
         feat = model.extract_feat(data['img'][0].cuda())
         
         if type(data['img_metas'][0]) == list:
             img_metas = data['img_metas'][0]
         else:
             img_metas = data['img_metas'][0].data[0]
-            
-        res = model.bbox_head.simple_test(
-            feat, img_metas, rescale=True)
+        
+        if args.model == "yolov3" or args.model == "retinanet":
+            res = model.bbox_head.simple_test(
+                feat, img_metas, rescale=True)
+        elif args.model == "frcn":
+            # rpn_outs = model.rpn_head(feat)
+            proposal_list = model.rpn_head.simple_test_rpn(feat, img_metas)
+            res = model.roi_head.simple_test_bboxes(feat, img_metas, proposal_list, model.roi_head.test_cfg, rescale=True)
         
         # Top 1
         for index in [0]:
             target_box = res[0][0][index][:-1].cpu().detach().numpy().astype(np.int32)
-            
-            target_class = res[0][1][index].cpu().detach().numpy()
+            if args.model == "yolov3" or args.model == "retinanet":
+                target_class = res[0][1][index].cpu().detach().numpy()
+            elif args.model == "frcn":
+                target_class = res[1][0][index].cpu().detach().numpy()
             score = res[0][0][index][-1].cpu().detach().numpy()
             if score < args.thresh:
                 break
@@ -209,7 +279,8 @@ def main(args):
                 draw_image = image_cam.copy()
                 draw_label_type(draw_image, target_box, gt_box.cpu().numpy(), points, label_names[int(target_class)],line = 5,label_color=(0,255,255))
                 
-                cv2.imwrite("results/YOLO_v3/D-RISE/{}-{}-{}-{}.jpg".format(image_path.split("/")[-1].replace(".jpg", ""), gt_box, points, point_game_result), draw_image)
+                # cv2.imwrite("results/YOLO_v3/D-RISE/{}-{}-{}-{}.jpg".format(image_path.split("/")[-1].replace(".jpg", ""), gt_box, points, point_game_result), draw_image)
+                cv2.imwrite("{}/{}-{}-{}-{}.jpg".format(os.path.join(args.save_dir, "D-RISE"), image_path.split("/")[-1].replace(".jpg", ""), gt_box, points, point_game_result), draw_image)
             else:
                 print(False)
         # break
