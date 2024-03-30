@@ -35,6 +35,8 @@ Paper: [https://arxiv.org/abs/1804.02767](https://arxiv.org/abs/1804.02767)
 
 Step by step see: [gradcam-yolov3.ipynb](tutorial/gradcam-yolov3.ipynb)
 
+Model config and checkpoint: [https://huggingface.co/RuoyuChen/objectdetection-saliency-maps/](https://huggingface.co/RuoyuChen/objectdetection-saliency-maps/)
+
 ```angular2html
 python gradcam-yolov3.py \
         --config <Configs Path> \
@@ -144,6 +146,8 @@ Supported Object Detection Algorithm:
 Paper: [https://arxiv.org/abs/1804.02767](https://arxiv.org/abs/1804.02767)
 
 Step by step see: [drise-yolov3.ipynb](tutorial/drise-yolov3.ipynb)
+
+Model config and checkpoint: [https://huggingface.co/RuoyuChen/objectdetection-saliency-maps/](https://huggingface.co/RuoyuChen/objectdetection-saliency-maps/)
 
 ```angular2html
 python drise-yolov3.py \
